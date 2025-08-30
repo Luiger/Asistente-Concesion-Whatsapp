@@ -2,7 +2,6 @@ const { GoogleSpreadsheet } = require('google-spreadsheet');
 const { JWT } = require('google-auth-library');
 
 const { SERVICE_ACCOUNT_JSON_FILE_PATH, SPREADSHEET_ID } = require('./constant');
-const creds = require(`./${SERVICE_ACCOUNT_JSON_FILE_PATH}`);
 
 const serviceAccountAuth = new JWT({
     email: SERVICE_ACCOUNT_JSON_FILE_PATH.client_email,
