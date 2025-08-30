@@ -5,8 +5,8 @@ const { SERVICE_ACCOUNT_JSON_FILE_PATH, SPREADSHEET_ID } = require('./constant')
 const creds = require(`./${SERVICE_ACCOUNT_JSON_FILE_PATH}`);
 
 const serviceAccountAuth = new JWT({
-    email: creds.client_email,
-    key: creds.private_key,
+    email: SERVICE_ACCOUNT_JSON_FILE_PATH.client_email,
+    key: SERVICE_ACCOUNT_JSON_FILE_PATH.private_key,
     scopes: [
         'https://www.googleapis.com/auth/spreadsheets',
     ],
