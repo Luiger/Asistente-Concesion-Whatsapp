@@ -47,9 +47,15 @@ router.post('/webhook', async (req, res) => {
 
         console.log('Incoming request body:', req.body); // Log the entire request body
 
-        const dialogflowResponse = await detectIntentText(query, `${senderPhoneNumberId}`); // Pass the sender ID to Dialogflow
+        const dialogflowResponse = await detectIntentText(query, `${senderPhoneNumberId}`);
         console.log(dialogflowResponse);
-        const finalResponse = dialogflowResponse.response;
+
+        let finalResponse = '';
+        if (dialogflowResponse.status === 1 && dialogflowResponse.responses && dialogflowResponse.responses.length > 0) {
+            finalResponse = dialogflowResponse.responses.join('\n'); // Join multiple responses if any
+        } else {
+            finalResponse = ERROR_MESSAGE; // Use the default error message
+        }
 
         // Save to Google Sheet
         const sheetData = {
@@ -67,7 +73,7 @@ router.post('/webhook', async (req, res) => {
 
         const data = {
             messaging_product: "whatsapp",
-            to: senderPhoneNumberId, // Use the full senderPhoneNumberId for the 'to' field
+            to: senderPhoneNumberId,
             text: {
                 body: finalResponse
             }

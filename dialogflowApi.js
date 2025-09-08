@@ -2,7 +2,12 @@ const fs = require('fs');
 
 const { SessionsClient } = require('@google-cloud/dialogflow-cx');
 
-const { SERVICE_ACCOUNT_JSON_FILE_PATH, DIALOGFLOW_CX_AGENT_ID, DIALOGFLOW_CX_AGENT_LOCATION } = require('./constant');
+const {
+    SERVICE_ACCOUNT_JSON_FILE_PATH,
+    DIALOGFLOW_CX_AGENT_ID,
+    DIALOGFLOW_CX_AGENT_LOCATION,
+    ERROR_MESSAGE
+} = require('./constant');
 
 /**
  * Replace this things with your actual values
@@ -16,11 +21,16 @@ const { SERVICE_ACCOUNT_JSON_FILE_PATH, DIALOGFLOW_CX_AGENT_ID, DIALOGFLOW_CX_AG
  * apiEndpoint: 'us-central1-dialogflow.googleapis.com'
  */
 
+
+/** 
+const keyFilePath = process.env.SERVICE_ACCOUNT_JSON_PATH || '/secrets/service-account.json';
+const credentials = JSON.parse(fs.readFileSync(keyFilePath, 'utf8'));
+*/
 const credentials = JSON.parse(fs.readFileSync(SERVICE_ACCOUNT_JSON_FILE_PATH));
 const projectId = credentials.project_id;
 const location = DIALOGFLOW_CX_AGENT_LOCATION;
 const agentId = DIALOGFLOW_CX_AGENT_ID;
-const languageCode = 'en';
+const languageCode = 'es';
 
 const client = new SessionsClient({
     credentials: {
@@ -31,7 +41,6 @@ const client = new SessionsClient({
     },
     apiEndpoint: `${location}-dialogflow.googleapis.com`
 });
-
 
 const detectIntentText = async (query, sessionId) => {
     try {
@@ -51,23 +60,28 @@ const detectIntentText = async (query, sessionId) => {
             },
         };
         const [response] = await client.detectIntent(request);
+        let textResponses = [];
         for (const message of response.queryResult.responseMessages) {
             if (message.text) {
-                return {
-                    status: 1,
-                    response: message.text.text[0]
-                };
+                textResponses.push(message.text.text[0]);
             }
         }
-        return {
-            status: 0,
-            response: 'We are facing a technical issue at this time, please try after sometimes.'
-        };
+        if (textResponses.length === 0) {
+            return {
+                status: 0,
+                responses: [ERROR_MESSAGE]
+            };
+        } else {
+            return {
+                status: 1,
+                responses: textResponses
+            };
+        }
     } catch (error) {
         console.log(`Error at detectIntentText -> ${error}`);
         return {
             status: 0,
-            response: 'We are facing a technical issue at this time, please try after sometimes.'
+            responses: [ERROR_MESSAGE]
         };
     }
 };
