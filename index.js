@@ -1,6 +1,8 @@
 const express = require('express');
 
 const webApp = express();
+const sessionTracker = {}; // Objeto para rastrear los turnos de cada sesión
+module.exports.sessionTracker = sessionTracker; // Exportarlo para que otras rutas lo usen
 
 webApp.use(express.urlencoded({ extended: true }));
 webApp.use(express.json());
