@@ -6,7 +6,7 @@ console.log('SERVICE_ACCOUNT_JSON_FILE_PATH:', SERVICE_ACCOUNT_JSON_FILE_PATH); 
 const DIALOGFLOW_CX_AGENT_ID = process.env.DIALOGFLOW_CX_AGENT_ID;
 const DIALOGFLOW_CX_AGENT_LOCATION = process.env.DIALOGFLOW_CX_AGENT_LOCATION;
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
-const ERROR_MESSAGE = 'We are facing a technical issue at this time, please try after sometimes.';
+const ERROR_MESSAGE = process.env.ERROR_MESSAGE;
 
 module.exports = {
     GEMINI_API_KEY,
