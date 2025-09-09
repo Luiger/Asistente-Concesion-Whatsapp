@@ -1,12 +1,12 @@
 const express = require('express');
-const axios = require('axios');
 const router = express.Router();
+const axios = require('axios');
 
 const { detectIntentText } = require('./dialogflowApi');
-const { appendToSheet } = require('./googleSheetApi');
+const { appendToSheet, getRecentHistory } = require('./googleSheetApi');
 const { ERROR_MESSAGE } = require('./constant');
-const { sessionTracker } = require('./index'); // Importamos nuestro rastreador
 
+// La lógica de verificación de webhook (GET) no cambia
 router.get('/webhook', (req, res) => {
     const VERIFY_TOKEN = process.env.VERIFY_TOKEN || 'TOKENSECRETO9537'; // Fallback token if not in .env
     console.log('VERIFY_TOKEN:', VERIFY_TOKEN); // Log the token being used
@@ -26,97 +26,72 @@ router.get('/webhook', (req, res) => {
     }
 });
 
+// Reemplazamos por completo la lógica POST
 router.post('/webhook', async (req, res) => {
     try {
         let query = '';
-        let senderPhoneNumberId = '';
+        let senderPhoneNumber = '';
 
         if (req.body.object && req.body.entry && req.body.entry[0].changes && req.body.entry[0].changes[0].value && req.body.entry[0].changes[0].value.messages && req.body.entry[0].changes[0].value.messages[0]) {
             const message = req.body.entry[0].changes[0].value.messages[0];
             if (message.text && message.text.body) {
                 query = message.text.body;
             }
-            senderPhoneNumberId = message.from;
+            senderPhoneNumber = message.from;
         } else {
-            return res.status(200).send('OK'); // Respond with OK even if it's not a message
+            return res.status(200).send('OK');
         }
 
-        // --- LÓGICA DE LA VENTANA DE SESIÓN ---
-        const userIdentifier = `${senderPhoneNumberId}`;
+        // 1. SESSION ID PERSISTENTE
+        // Creamos un ID de sesión único y constante para cada usuario
+        const finalSessionId = `whatsapp-${senderPhoneNumber}`;
 
-        // 1. Obtener el estado actual del usuario o inicializarlo
-        if (!sessionTracker[userIdentifier]) {
-            sessionTracker[userIdentifier] = { turn: 1, sessionSuffix: 1 };
-        } else {
-            sessionTracker[userIdentifier].turn++;
-        }
+        // 2. LEER HISTORIAL RECIENTE (Ventana Deslizante)
+        // Leemos los últimos 6 turnos desde Google Sheets
+        const recentHistory = await getRecentHistory(senderPhoneNumber, 12);
 
-        // 2. Definir el tamaño máximo de la ventana de sesión (ej. 20 turnos)
-        const SESSION_WINDOW_SIZE = 10;
-        
-        // 3. Si se excede el límite, iniciar una nueva sesión reiniciando el contador de turnos y cambiando el sufijo
-        if (sessionTracker[userIdentifier].turn > SESSION_WINDOW_SIZE) {
-            sessionTracker[userIdentifier].turn = 1;
-            sessionTracker[userIdentifier].sessionSuffix++;
-        }
-        
-        // 4. Construir el ID de sesión final que se enviará a Dialogflow
-        const currentSuffix = sessionTracker[userIdentifier].sessionSuffix;
-        const finalSessionId = `${userIdentifier}-${currentSuffix}`;
-        
-        console.log(`User: ${userIdentifier}, Turn: ${sessionTracker[userIdentifier].turn}, SessionID: ${finalSessionId}`);
+        // 3. CONSTRUIR PROMPT CON CONTEXTO
+        // Creamos un bloque de texto con el historial para dar contexto al agente
+        const historyText = recentHistory.map(turn =>
+            `${turn.role === 'user' ? 'Usuario' : 'Agente'}: ${turn.content}`
+        ).join('\n');
 
-        console.log(query);
-        console.log('Sender ID:', senderPhoneNumberId); // Log the sender ID directly
+        const fullPrompt = `${historyText}\nUsuario: ${query}`;
 
-        console.log('Incoming request body:', req.body); // Log the entire request body
+        // 4. LLAMAR A DIALOGFLOW
+        // Enviamos el prompt completo, pero solo la pregunta actual importa para la detección de intención.
+        // El historial en el prompt ayuda al Playbook a mantener el contexto.
+        const dialogflowResponse = await detectIntentText(query, finalSessionId); // Enviamos solo la query actual
 
-        const dialogflowResponse = await detectIntentText(query, finalSessionId);
-        console.log(dialogflowResponse);
+        const finalResponseText = (dialogflowResponse.status === 1 && dialogflowResponse.responses?.length > 0)
+            ? dialogflowResponse.responses.join('\n')
+            : ERROR_MESSAGE;
 
-        let finalResponse = '';
-        if (dialogflowResponse.status === 1 && dialogflowResponse.responses && dialogflowResponse.responses.length > 0) {
-            finalResponse = dialogflowResponse.responses.join('\n'); // Join multiple responses if any
-        } else {
-            finalResponse = ERROR_MESSAGE; // Use the default error message
-        }
+        // 5. ESCRIBIR EN GOOGLE SHEET
+        const timestamp = new Date().toISOString();
+        // Escribimos la fila del usuario
+        await appendToSheet({ timestamp, phoneNumber: senderPhoneNumber, sessionID: finalSessionId, role: 'user', utterance: query });
+        // Escribimos la fila del agente
+        await appendToSheet({ timestamp, phoneNumber: senderPhoneNumber, sessionID: finalSessionId, role: 'agent', utterance: finalResponseText });
 
-        // Save to Google Sheet
-        await appendToSheet({
-            timestamp: new Date().toISOString(),
-            phoneNumber: userIdentifier,
-            sessionID: finalSessionId,
-            userUtterance: query,
-            agentUtterance: finalResponse
-        });
-
+        // 6. RESPONDER A WHATSAPP
         const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
         const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-
         const url = `https://graph.facebook.com/v22.0/${phoneNumberId}/messages`;
-
         const data = {
             messaging_product: "whatsapp",
-            to: senderPhoneNumberId,
-            text: {
-                body: finalResponse
-            }
+            to: senderPhoneNumber,
+            text: { body: finalResponseText }
         };
-
         const config = {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json'
-            }
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
         };
-
         await axios.post(url, data, config);
 
-        console.log('Request success.');
     } catch (error) {
-        console.log(`Error at /twilio/webhook -> ${error}`);
+        console.error(`Error en /twilio/webhook -> ${error}`);
     }
-    res.send('OK');
+    res.status(200).send('OK');
 });
 
 module.exports = {
