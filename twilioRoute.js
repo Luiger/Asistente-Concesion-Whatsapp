@@ -48,7 +48,7 @@ router.post('/webhook', async (req, res) => {
 
         // 2. LEER HISTORIAL RECIENTE (Ventana Deslizante)
         // Leemos los últimos 6 turnos desde Google Sheets
-        const recentHistory = await getRecentHistory(senderPhoneNumber, 12);
+        const recentHistory = await getRecentHistory(senderPhoneNumber, 6);
 
         // 3. CONSTRUIR PROMPT CON CONTEXTO
         // Creamos un bloque de texto con el historial para dar contexto al agente

@@ -22,7 +22,7 @@ async function appendToSheet(data) {
     }
 }
 
-async function getRecentHistory(phoneNumber, limit = 12) {
+async function getRecentHistory(phoneNumber, limit = 6) {
     try {
         await doc.loadInfo();
         const sheet = doc.sheetsByTitle['Chat']; // O el nombre correcto de tu hoja
