@@ -47,8 +47,8 @@ router.post('/webhook', async (req, res) => {
         const finalSessionId = `whatsapp-${senderPhoneNumber}`;
 
         // 2. LEER HISTORIAL RECIENTE (Ventana Deslizante)
-        // Leemos los últimos 6 turnos desde Google Sheets
-        const recentHistory = await getRecentHistory(senderPhoneNumber, 6);
+        // Leemos los últimos 4 turnos desde Google Sheets
+        const recentHistory = await getRecentHistory(senderPhoneNumber, 4);
 
         // 3. CONSTRUIR PROMPT CON CONTEXTO
         // Creamos un bloque de texto con el historial para dar contexto al agente
